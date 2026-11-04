@@ -1,0 +1,66 @@
+# This fork's IPA: every push to main builds an unsigned Tether.ipa for ESign (or any re-signer).
+# Actions > the run > Artifacts > Tether-unsigned-ipa. The version is 0.1.<run number>.
+name: Build IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: build-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ipa:
+    runs-on: macos-26
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    env:
+      BUNDLE_ID: com.taegun.tether
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # build-ipa.sh needs the commit count for the build number
+      - uses: ./.github/actions/build-tools
+      - name: Unit tests
+        run: |
+          mkdir -p "$RUNNER_TEMP/logs"
+          scripts/build-wireguard.sh
+          swift test 2>&1 | tee "$RUNNER_TEMP/logs/test.log"
+      - name: Build Tether.ipa
+        run: scripts/build-ipa.sh "0.1.$GITHUB_RUN_NUMBER" "$RUNNER_TEMP/out" 2>&1 | tee "$RUNNER_TEMP/logs/build.log"
+      - name: Check the IPA
+        run: |
+          bash scripts/verify_ipa.sh "$RUNNER_TEMP/out/Tether.ipa" "$BUNDLE_ID" Tether
+          work=$(mktemp -d)
+          unzip -q "$RUNNER_TEMP/out/Tether.ipa" -d "$work"
+          plist=$work/Payload/Tether.app/Info.plist
+          /usr/libexec/PlistBuddy -c 'Print :UIBackgroundModes' "$plist"
+          /usr/libexec/PlistBuddy -c 'Print :BGTaskSchedulerPermittedIdentifiers' "$plist" | tee "$work/ids"
+          grep -q "$BUNDLE_ID.keepalive" "$work/ids" || { echo "::error::BGTaskSchedulerPermittedIdentifiers doesn't match the bundle ID"; exit 1; }
+          if /usr/libexec/PlistBuddy -c 'Print :UIBackgroundModes' "$plist" | grep -q audio; then
+            echo "::error::the audio background mode is still in Info.plist"; exit 1
+          fi
+      - uses: actions/upload-artifact@v5
+        with:
+          name: Tether-unsigned-ipa
+          path: ${{ runner.temp }}/out/Tether.ipa
+          if-no-files-found: error
+          retention-days: 14
+      - name: Summarize failures
+        if: failure()
+        run: |
+          cat "$RUNNER_TEMP"/logs/*.log 2>/dev/null \
+            | grep -E "error:|: failed|FAIL|panic:|\*\* ARCHIVE FAILED" \
+            | sed -E 's#^/Users/runner/work/[^/]+/[^/]+/##' \
+            | awk '!seen[$0]++' | head -60 | cut -c1-600 > "$RUNNER_TEMP/summary.txt" || true
+          if [ -s "$RUNNER_TEMP/summary.txt" ]; then
+            ENCODED=$(sed -e 's/%/%25/g' "$RUNNER_TEMP/summary.txt" | awk '{printf "%s%%0A", $0}')
+            echo "::error title=Build/test failures::${ENCODED}"
+          fi

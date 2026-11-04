@@ -1,5 +1,10 @@
 # Tether
 
+> **이 fork의 변경점 (ktg3769):** 무음 오디오 대신 iOS 26+ `BGContinuedProcessingTask`로 백그라운드를 유지합니다.
+> Tether가 화면에 뜰 때마다(직접 열기, 단축어 Start Tether, 자동화의 앱 열기) 자동으로 요청하며, 메인 화면에서 상태 확인과
+> 다시 요청·중지를 할 수 있습니다. 앱 쪽 시간 제한은 없고, 시스템 Live Activity에서 취소하거나 앱 스위처에서 닫으면 끝납니다.
+> 최소 iOS 26. 서명 없는 IPA는 GitHub Actions `Build IPA` 워크플로의 Artifacts에서 받습니다.
+
 [![CI](https://github.com/viktor-svirsky/tether/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/viktor-svirsky/tether/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/viktor-svirsky/tether)](https://github.com/viktor-svirsky/tether/releases/latest)
 [![Downloads](https://img.shields.io/github/downloads/viktor-svirsky/tether/total)](https://github.com/viktor-svirsky/tether/releases)

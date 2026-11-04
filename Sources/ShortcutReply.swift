@@ -11,13 +11,12 @@ enum ShortcutReply {
         var sharing: Bool { running && problem == nil }
     }
 
-    /// After Start Tether. `keptAlive` is false when the silent sound couldn't start, and then iOS
-    /// suspends Tether again as soon as the action ends.
+    /// After Start Tether. `keptAlive` is false when the background task isn't running (yet), and then
+    /// iOS may suspend Tether once it leaves the screen.
     static func start(_ state: State, keptAlive: Bool) -> String {
-        if !keptAlive { return "Tether couldn't keep running in the background. Open it once." }
+        if !keptAlive { return "Tether asked iOS to keep it running in the background. Check Background on its screen." }
         if state.running { return status(state) }
-        let minutes = Int(KeepAlivePolicy.grace / 60)
-        return "Tether is ready. It starts sharing when a device joins Personal Hotspot in the next \(minutes) minutes."
+        return "Tether is ready. It starts sharing when a device joins Personal Hotspot."
     }
 
     static func status(_ state: State) -> String {

@@ -19,13 +19,12 @@
 //   Shortcuts.swift     the Shortcuts actions; ShortcutReply.swift has what they say, Foundation only
 //   WireGuardSetup.swift  the hotspot address, WireGuard keys, devices and client configs, Foundation only
 //   WireGuardServer.swift  runs the WireGuard server (WireGuard/, Go)
-//   KeepAlive.swift, KeepAlivePolicy.swift  the silent sound that keeps Tether running
+//   BackgroundSession.swift  the iOS 26 background task that keeps Tether running (this fork)
+//   KeepAlivePolicy.swift  how often the hotspot is watched
 
 import OSLog
 import SwiftUI
 import UIKit
-
-extension KeepAlive: KeepAliveSound {}
 
 /// What SwiftUI observes. The decisions are in `HotspotSession`. This runs it on the watcher and the
 /// sampler, tells it when the app comes on screen or leaves, and shows what it has.
@@ -48,6 +47,10 @@ final class Model: ObservableObject {
     var wireGuardProblem: String? { session.wireGuardProblem }
     var sharing: Bool { session.sharing }
     var wireGuardNeedsReset: Bool { session.wireGuardNeedsReset }
+
+    /// Keeps Tether running in the background, requested each time Tether comes on screen.
+    static let background = BackgroundSession(log: Model.append)
+    var background: BackgroundSession { Self.background }
 
     /// iOS blocks Tether's replies to the devices, see `LocalNetworkCheck`. Checked while on screen.
     @Published private(set) var localNetworkDenied = false
@@ -129,7 +132,10 @@ final class Model: ObservableObject {
         }
         #endif
         refreshExpiryWarning()
+        Self.background.subtitle = { [weak self] in self?.backgroundSubtitle ?? "Sharing Personal Hotspot" }
         observeScene()
+        // A launch straight onto the screen (opened by hand or by an automation) asks for it now.
+        if session.sceneActive { requestBackground() }
         localNetwork.onChange = { [weak self] denied in
             self?.localNetworkDenied = denied
             Self.append("Local Network access: \(denied ? "denied" : "allowed")")
@@ -151,11 +157,30 @@ final class Model: ObservableObject {
     /// The session with the real server, sound, page and hotspot.
     private static func session(secrets: SecretStore) -> HotspotSession {
         HotspotSession(devices: WireGuardDevices(secrets: secrets), server: WireGuardServer(log: Self.append),
-                       keepAlive: KeepAlive(log: Self.append), page: ConfigPageServer(),
+                       keepAlive: Self.background, page: ConfigPageServer(),
                        sceneActive: UIApplication.shared.applicationState != .background,
                        hotspotAddress: HotspotAddressKeeper(defaults: .standard).address,
                        carrierIPv6Only: Interfaces.carrierIPv6Only,
                        log: Self.append)
+    }
+
+    /// Asks for the background task while Tether is on screen. Nothing happens if it's already
+    /// requested or running.
+    func requestBackground() {
+        #if DEBUG
+        if demo != nil { return }
+        #endif
+        background.request()
+    }
+
+    func stopBackground() { background.end() }
+
+    /// What the system's Live Activity for the background task says under "Tether".
+    private var backgroundSubtitle: String {
+        guard running else { return "Waiting for Personal Hotspot" }
+        if wireGuardProblem != nil { return "Hotspot on, WireGuard not running" }
+        let n = wireGuardConnected.count
+        return n == 1 ? "Sharing with 1 device" : "Sharing with \(n) devices"
     }
 
     /// Every second while the app is on screen. In the background nothing on screen needs it, so it stops.
@@ -304,6 +329,7 @@ final class Model: ObservableObject {
         }
         observe(UIApplication.didBecomeActiveNotification) { model in
             model.session.cameOnScreen()
+            model.requestBackground() // iOS takes it only while Tether is on screen
             model.localNetwork.start() // afresh, for a change made in Settings
             model.startSampler() // samples at once, then every second again
         }

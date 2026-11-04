@@ -49,6 +49,8 @@ struct MainView: View {
                 .listRowBackground(Color.clear)
                 .listRowInsets(EdgeInsets())
 
+                BackgroundSection(model: model, background: model.background)
+
                 if let warning = model.expiryWarning {
                     Section {
                         Label {
@@ -316,4 +318,27 @@ struct StatusOrb: View {
 
 #Preview("Main screen") {
     MainView()
+}
+
+/// The iOS 26 background task that keeps Tether running off screen. It's requested by itself each
+/// time Tether comes on screen; the button asks again after it ended or failed.
+struct BackgroundSection: View {
+    @ObservedObject var model: Model
+    @ObservedObject var background: BackgroundSession
+
+    var body: some View {
+        Section {
+            LabeledContent("Background", value: background.status.title)
+                .accessibilityIdentifier("background.status")
+            if background.active {
+                Button("Stop Running in Background", role: .destructive) { model.stopBackground() }
+                    .accessibilityIdentifier("background.stop")
+            } else {
+                Button("Keep Running in Background") { model.requestBackground() }
+                    .accessibilityIdentifier("background.start")
+            }
+        } footer: {
+            Text("Requested each time Tether opens. iOS shows it as a Live Activity, where it can be cancelled. Closing Tether in the app switcher ends it too.")
+        }
+    }
 }

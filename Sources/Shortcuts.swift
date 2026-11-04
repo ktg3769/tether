@@ -1,14 +1,17 @@
 import AppIntents
 
-// Actions for the Shortcuts app, Siri, Spotlight and the Action button. iOS suspends Tether once
-// nothing has been on the hotspot for 10 minutes (KeepAlivePolicy), and Shortcuts has no trigger
-// for Personal Hotspot turning on. So a shortcut turns the hotspot on with Shortcuts' own Set Personal Hotspot
-// action, then runs Start Tether, which wakes Tether in the background without opening it.
+// Actions for the Shortcuts app, Siri, Spotlight and the Action button. In this fork Tether stays
+// running in the background with iOS 26's background task, which iOS takes only while Tether is on
+// screen. So Start Tether opens Tether: coming on screen requests the task, and Tether shares from
+// then on, also after leaving the screen. Shortcuts has no trigger for Personal Hotspot turning on,
+// so a shortcut turns the hotspot on with Set Personal Hotspot, then runs Start Tether.
 
 struct StartTetherIntent: AppIntent {
     static var title: LocalizedStringResource = "Start Tether"
     static var description = IntentDescription(
-        "Wakes Tether in the background, the same as opening it. It shares as soon as a device joins Personal Hotspot in the next 10 minutes. Put it after Set Personal Hotspot.")
+        "Opens Tether, which asks iOS to keep it running in the background, and starts sharing when a device joins Personal Hotspot. Put it after Set Personal Hotspot.")
+    /// Coming on screen is what lets Tether request its background task.
+    static var openAppWhenRun: Bool = true
 
     @MainActor
     func perform() async throws -> some IntentResult & ReturnsValue<Bool> & ProvidesDialog {

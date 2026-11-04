@@ -25,7 +25,7 @@ final class ShortcutReplyTests: XCTestCase {
 
     func testStartWithoutTheHotspotSaysHowLongItWaits() {
         XCTAssertEqual(ShortcutReply.start(State(running: false, connected: 0), keptAlive: true),
-                       "Tether is ready. It starts sharing when a device joins Personal Hotspot in the next 10 minutes.")
+                       "Tether is ready. It starts sharing when a device joins Personal Hotspot.")
     }
 
     func testStartWithTheHotspotOnSaysItShares() {
@@ -34,6 +34,6 @@ final class ShortcutReplyTests: XCTestCase {
 
     func testStartThatCannotStayAliveAsksToOpenTether() {
         XCTAssertEqual(ShortcutReply.start(State(running: true, connected: 0), keptAlive: false),
-                       "Tether couldn't keep running in the background. Open it once.")
+                       "Tether asked iOS to keep it running in the background. Check Background on its screen.")
     }
 }
