@@ -194,6 +194,9 @@ func (s *Server) send(c *cone) {
 		}
 		if err == nil {
 			c.last.Store(time.Now().UnixNano())
+		} else {
+			s.diag.udpFailed.Add(1)
+			s.diag.fail("UDP " + o.dst.String() + ": " + err.Error())
 		}
 	}
 }

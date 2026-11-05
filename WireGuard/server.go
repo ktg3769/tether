@@ -165,7 +165,9 @@ type Server struct {
 	cancel context.CancelFunc
 	// heard sees each line wireguard-go logs. Tests set it to look at the server mid-change.
 	heard atomic.Pointer[func(string)]
-	ipID  atomic.Uint32 // IPv4 identification for the UDP replies udp.go builds
+	// diag counts what the diagnostics screen shows, see diagnostics.go.
+	diag diagnostics
+	ipID atomic.Uint32 // IPv4 identification for the UDP replies udp.go builds
 	// up and down are the byte totals. Atomic, since every read and write of every connection
 	// adds to them, and a lock there would make them all take turns.
 	up, down atomic.Uint64
@@ -417,6 +419,9 @@ func (s *Server) makeRouter(addr netip.Addr) {
 // notice is wireguard-go's verbose logger. Two of the things it says matter here, see
 // noticeHandshake and noticeRouter. The rest is dropped.
 func (s *Server) notice(format string, args ...any) {
+	if strings.Contains(format, "disallowed source address") {
+		s.diag.disallowed.Add(1)
+	}
 	if heard := s.heard.Load(); heard != nil {
 		(*heard)(fmt.Sprintf(format, args...))
 	}
@@ -860,6 +865,7 @@ func (s *Server) forwardTCP(r *tcp.ForwarderRequest) {
 		refuse()
 		return
 	}
+	s.diag.tcpTried.Add(1)
 	out, err := s.dial(s.ctx, "tcp", dst.String())
 	if noRoute(err) {
 		if via, ok := s.viaNAT64(s.ctx, dst); ok {
@@ -867,6 +873,8 @@ func (s *Server) forwardTCP(r *tcp.ForwarderRequest) {
 		}
 	}
 	if err != nil {
+		s.diag.tcpFailed.Add(1)
+		s.diag.fail("TCP " + dst.String() + ": " + err.Error())
 		refuse()
 		return
 	}
@@ -1058,6 +1066,10 @@ type stackTun struct {
 	// dropped counts the packets for devices that found incoming full: TCP's from WriteNotify and
 	// UDP replies from inject. Tests read it to tell this loss from any other.
 	dropped atomic.Uint64
+	// received counts the packets the devices sent into the tunnel, and lastIn says what the
+	// latest one was. For Tether's diagnostics screen.
+	received atomic.Uint64
+	lastIn   atomic.Pointer[string]
 }
 
 func newStackTun() *stackTun {
@@ -1109,9 +1121,13 @@ func (t *stackTun) Write(bufs [][]byte, offset int) (int, error) {
 		if len(p) == 0 {
 			continue
 		}
+		t.received.Add(1)
 		if t.ping != nil && isEchoRequest(p) {
 			t.ping(p)
 			continue
+		}
+		if d := describePacket(p); d != "" {
+			t.lastIn.Store(&d)
 		}
 		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{Payload: buffer.MakeWithData(p)})
 		if p[0]>>4 == 6 {

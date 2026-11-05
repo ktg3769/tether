@@ -125,6 +125,7 @@ final class WireGuardServer {
             let up: UInt64
             let down: UInt64
             let peers: [Peer]
+            let diag: ServerDiagnostics? // this fork's diagnostics screen, see diagnostics.go
 
             struct Peer: Decodable {
                 let address: String
@@ -151,7 +152,7 @@ final class WireGuardServer {
                                              lastHandshake: p.handshake > 0 ? Date(timeIntervalSince1970: TimeInterval(p.handshake)) : nil,
                                              endpoint: p.endpoint.isEmpty ? nil : p.endpoint)
             }
-            return ServerSnapshot(totals: TrafficTotals(bytesUp: m.up, bytesDown: m.down), peers: peers)
+            return ServerSnapshot(totals: TrafficTotals(bytesUp: m.up, bytesDown: m.down), peers: peers, diag: m.diag)
         }
     }
 }

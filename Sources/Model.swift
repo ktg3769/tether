@@ -41,6 +41,8 @@ final class Model: ObservableObject {
     var upSpeed: Double { session.upSpeed }
     var wireGuardConnected: Set<String> { session.wireGuardConnected }
     var wireGuardPeers: [WireGuardSetup.Peer] { session.wireGuardPeers }
+    /// This fork's diagnostics screen.
+    var diagnostics: (snapshot: ServerSnapshot, listening: String?) { session.diagnostics }
     var wireGuardPeerStats: [String: PeerStats] { session.wireGuardPeerStats }
     var wireGuardReady: WireGuardSetup.Ready? { session.wireGuardReady }
     var wireGuardReadyProblem: String? { session.wireGuardReadyProblem }

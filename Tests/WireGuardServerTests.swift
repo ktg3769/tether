@@ -186,6 +186,8 @@ final class WireGuardServerTests: XCTestCase {
                                                           lastHandshake: Date(timeIntervalSince1970: 1_793_718_000),
                                                           endpoint: "172.20.10.3:51820"))
         XCTAssertEqual(stats.peers["10.7.0.3"], PeerStats(), "never connected: no handshake, no endpoint")
+        XCTAssertEqual(stats.diag?.received, 12)
+        XCTAssertEqual(stats.diag?.lastIn, "TCP 10.7.0.2 → 1.1.1.1:443")
     }
 
     func testStatsOfAnotherShapeAreRefused() {

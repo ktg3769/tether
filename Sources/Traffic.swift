@@ -37,6 +37,8 @@ struct PeerStats: Equatable {
 struct ServerSnapshot: Equatable {
     var totals = TrafficTotals()
     var peers: [String: PeerStats] = [:]
+    /// This fork's diagnostics, see diagnostics.go. Nil from fakes.
+    var diag: ServerDiagnostics?
 
     var connected: Set<String> { Set(peers.filter(\.value.connected).keys) }
 }
@@ -72,4 +74,20 @@ struct CarriedDevices {
         }
         return out
     }
+}
+
+/// Where a device's traffic stops, for this fork's diagnostics screen. See diagMessage in diagnostics.go.
+struct ServerDiagnostics: Decodable, Equatable {
+    /// Packets the devices sent into the tunnel.
+    var received: UInt64
+    /// The latest of them, like "TCP 10.7.0.2 → 1.1.1.1:443".
+    var lastIn: String
+    /// Packets dropped for a source address the device doesn't have.
+    var disallowed: UInt64
+    var tcpTried: UInt64
+    var tcpFailed: UInt64
+    var udpFailed: UInt64
+    var lastError: String
+    /// The NAT64 prefix in use, "" before the first IPv4 connection needed one.
+    var nat64: String
 }

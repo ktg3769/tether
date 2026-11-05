@@ -36,6 +36,8 @@ type statsMessage struct {
 	Down uint64 `json:"down"`
 	// Peers holds every device the server lets in, in address order.
 	Peers []peerStats `json:"peers"`
+	// Diag is for the diagnostics screen, see diagnostics.go.
+	Diag diagMessage `json:"diag"`
 }
 
 type peerStats struct {
@@ -124,7 +126,7 @@ func (s *Server) statsMessage() statsMessage {
 	for _, a := range st.Connected {
 		connected[a] = true
 	}
-	m := statsMessage{V: messageVersion, Up: st.Up, Down: st.Down, Peers: []peerStats{}}
+	m := statsMessage{V: messageVersion, Up: st.Up, Down: st.Down, Peers: []peerStats{}, Diag: s.diagMessage()}
 	addresses := s.addresses()
 	s.mu.Lock()
 	defer s.mu.Unlock()

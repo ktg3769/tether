@@ -398,6 +398,11 @@ final class HotspotSession {
 
     /// The IPv6 address the server listens on, for the mDNS name to point at. Nil without the hotspot
     /// or on IPv4.
+    /// This fork's diagnostics screen: what the server reports now, and the address it listens on.
+    var diagnostics: (snapshot: ServerSnapshot, listening: String?) {
+        (server.snapshot(), running ? boundHost : nil)
+    }
+
     var listeningIPv6: String? {
         guard running, let boundHost, boundHost.contains(":") else { return nil }
         return boundHost

@@ -88,6 +88,10 @@ struct MainView: View {
                 }
 
                 AddDeviceSection(model: model, first: model.wireGuardPeers.isEmpty) { addingDevice = true }
+
+                Section {
+                    NavigationLink("Diagnostics") { DiagnosticsView(model: model) }
+                }
             }
             // The title above draws it big, so the bar stays hidden. It's still set, because the
             // screens pushed from here use it for their back button.
