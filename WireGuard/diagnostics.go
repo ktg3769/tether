@@ -10,6 +10,7 @@ import (
 // diagnostics are counters for Tether's diagnostics screen, which tells where a device's traffic
 // stops: never reaching the tunnel, dropped by wireguard-go, or failing on the iPhone's way out.
 type diagnostics struct {
+	invalid    atomic.Uint64 // WireGuard messages wireguard-go turned away: an unknown key, for one
 	disallowed atomic.Uint64 // packets wireguard-go dropped for a source address the device doesn't have
 	tcpTried   atomic.Uint64 // TCP connections the devices opened
 	tcpFailed  atomic.Uint64 // of those, the ones the iPhone couldn't make
@@ -24,6 +25,11 @@ func (d *diagnostics) fail(what string) {
 
 // diagMessage is the "diag" object in statsMessage.
 type diagMessage struct {
+	UDPIn      uint64 `json:"udpIn"`
+	UDPFrom    string `json:"udpFrom"`
+	SendFailed uint64 `json:"sendFailed"`
+	SendError  string `json:"sendError"`
+	Invalid    uint64 `json:"invalid"`
 	Received   uint64 `json:"received"`
 	LastIn     string `json:"lastIn"`
 	Disallowed uint64 `json:"disallowed"`
@@ -36,6 +42,9 @@ type diagMessage struct {
 
 func (s *Server) diagMessage() diagMessage {
 	m := diagMessage{
+		UDPIn:      bindStats.in.Load(),
+		SendFailed: bindStats.sendFailed.Load(),
+		Invalid:    s.diag.invalid.Load(),
 		Disallowed: s.diag.disallowed.Load(),
 		TCPTried:   s.diag.tcpTried.Load(),
 		TCPFailed:  s.diag.tcpFailed.Load(),
@@ -46,6 +55,12 @@ func (s *Server) diagMessage() diagMessage {
 		if p := s.tun.lastIn.Load(); p != nil {
 			m.LastIn = *p
 		}
+	}
+	if p := bindStats.lastFrom.Load(); p != nil {
+		m.UDPFrom = *p
+	}
+	if p := bindStats.lastSendError.Load(); p != nil {
+		m.SendError = *p
 	}
 	if p := s.diag.lastError.Load(); p != nil {
 		m.LastError = *p

@@ -302,7 +302,12 @@ func Start(host netip.Addr, port int, privateKey [32]byte) (*Server, error) {
 	s.stack.SetTransportProtocolHandler(tcp.ProtocolNumber, s.handleTCP)
 	s.stack.SetTransportProtocolHandler(udp.ProtocolNumber, s.handleUDP)
 
-	logger := &device.Logger{Verbosef: s.notice, Errorf: device.NewLogger(device.LogLevelError, "wireguard: ").Errorf}
+	wgErr := device.NewLogger(device.LogLevelError, "wireguard: ").Errorf
+	logger := &device.Logger{Verbosef: s.notice, Errorf: func(format string, args ...any) {
+		s.diag.invalid.Add(1)
+		s.diag.fail("WireGuard: " + fmt.Sprintf(format, args...))
+		wgErr(format, args...)
+	}}
 	s.dev = device.NewDevice(s.tun, &hostBind{host: host}, logger)
 	if err := s.dev.IpcSet(fmt.Sprintf("private_key=%s\nlisten_port=%d\n", hex.EncodeToString(privateKey[:]), port)); err != nil {
 		s.dev.Close()
@@ -421,6 +426,9 @@ func (s *Server) makeRouter(addr netip.Addr) {
 func (s *Server) notice(format string, args ...any) {
 	if strings.Contains(format, "disallowed source address") {
 		s.diag.disallowed.Add(1)
+	}
+	if strings.Contains(format, "invalid") || strings.Contains(format, "Failed to") || strings.Contains(format, "unknown") {
+		s.diag.invalid.Add(1)
 	}
 	if heard := s.heard.Load(); heard != nil {
 		(*heard)(fmt.Sprintf(format, args...))

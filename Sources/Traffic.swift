@@ -78,6 +78,14 @@ struct CarriedDevices {
 
 /// Where a device's traffic stops, for this fork's diagnostics screen. See diagMessage in diagnostics.go.
 struct ServerDiagnostics: Decodable, Equatable {
+    /// UDP packets that reached the WireGuard port since Tether started, and the latest one's sender.
+    var udpIn: UInt64
+    var udpFrom: String
+    /// Replies the iPhone couldn't send back to a device, and why.
+    var sendFailed: UInt64
+    var sendError: String
+    /// WireGuard messages turned away, a handshake with an unknown key for one.
+    var invalid: UInt64
     /// Packets the devices sent into the tunnel.
     var received: UInt64
     /// The latest of them, like "TCP 10.7.0.2 → 1.1.1.1:443".

@@ -34,6 +34,16 @@ struct DiagnosticsView: View {
 
                 if let g = d.snapshot.diag {
                     Section {
+                        LabeledContent("UDP in on port 51820", value: "\(g.udpIn)")
+                        copyRow("Last UDP from", g.udpFrom.isEmpty ? "—" : g.udpFrom)
+                        LabeledContent("Rejected WireGuard messages", value: "\(g.invalid)")
+                        LabeledContent("Replies that couldn't be sent", value: "\(g.sendFailed)")
+                        copyRow("Last send error", g.sendError.isEmpty ? "—" : g.sendError)
+                    } header: { Text("WireGuard port") } footer: {
+                        Text("UDP in stays 0 when nothing from the device reaches this iPhone.")
+                    }
+
+                    Section {
                         LabeledContent("Packets in", value: "\(g.received)")
                         copyRow("Last packet in", g.lastIn.isEmpty ? "—" : g.lastIn)
                         LabeledContent("Dropped for source address", value: "\(g.disallowed)")

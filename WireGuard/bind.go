@@ -4,6 +4,8 @@ import (
 	"net"
 	"net/netip"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"golang.zx2c4.com/wireguard/conn"
 )
@@ -14,6 +16,15 @@ type hostBind struct {
 	host netip.Addr
 	mu   sync.Mutex
 	c    *net.UDPConn
+}
+
+// bindStats count what reaches the UDP port and what can't be sent back, for the diagnostics
+// screen: none in says the device's packets never reach the iPhone, send failures say the replies
+// can't leave (Local Network permission, for one).
+var bindStats struct {
+	in, sendFailed atomic.Uint64
+	lastFrom       atomic.Pointer[string]
+	lastSendError  atomic.Pointer[string]
 }
 
 type endpoint struct{ netip.AddrPort }
@@ -43,6 +54,9 @@ func (b *hostBind) Open(port uint16) ([]conn.ReceiveFunc, uint16, error) {
 		}
 		sizes[0] = n
 		eps[0] = endpoint{netip.AddrPortFrom(from.Addr().Unmap(), from.Port())}
+		bindStats.in.Add(1)
+		f := from.String()
+		bindStats.lastFrom.Store(&f)
 		return 1, nil
 	}
 	return []conn.ReceiveFunc{receive}, uint16(c.LocalAddr().(*net.UDPAddr).Port), nil
@@ -72,6 +86,9 @@ func (b *hostBind) Send(bufs [][]byte, ep conn.Endpoint) error {
 	}
 	for _, buf := range bufs {
 		if _, err := c.WriteToUDPAddrPort(buf, e.AddrPort); err != nil {
+			bindStats.sendFailed.Add(1)
+			m := time.Now().Format("15:04:05") + " to " + e.AddrPort.String() + ": " + err.Error()
+			bindStats.lastSendError.Store(&m)
 			return err
 		}
 	}
