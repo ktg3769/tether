@@ -74,7 +74,7 @@ final class WireGuardServer {
     /// connected, only while running.
     func snapshot() -> ServerSnapshot {
         let run = running ? currentRun() : ServerSnapshot()
-        return ServerSnapshot(totals: carried.apply(to: run.totals), peers: carriedDevices.apply(to: run.peers))
+        return ServerSnapshot(totals: carried.apply(to: run.totals), peers: carriedDevices.apply(to: run.peers), diag: run.diag)
     }
 
     /// This run's stats. Stats it can't read leave the last counters it read, so a stop still carries
