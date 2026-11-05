@@ -20,6 +20,7 @@
 //   WireGuardSetup.swift  the hotspot address, WireGuard keys, devices and client configs, Foundation only
 //   WireGuardServer.swift  runs the WireGuard server (WireGuard/, Go)
 //   BackgroundSession.swift  the iOS 26 background task that keeps Tether running (this fork)
+//   HostNamePublisher.swift  tether.local by mDNS, for devices on IPv6 (this fork)
 //   KeepAlivePolicy.swift  how often the hotspot is watched
 
 import OSLog
@@ -51,6 +52,8 @@ final class Model: ObservableObject {
     /// Keeps Tether running in the background, requested each time Tether comes on screen.
     static let background = BackgroundSession(log: Model.append)
     var background: BackgroundSession { Self.background }
+    /// This fork: `tether.local` for devices on IPv6, see `HostNamePublisher`.
+    private let hostName = HostNamePublisher(log: Model.append)
 
     /// iOS blocks Tether's replies to the devices, see `LocalNetworkCheck`. Checked while on screen.
     @Published private(set) var localNetworkDenied = false
@@ -133,6 +136,7 @@ final class Model: ObservableObject {
         #endif
         refreshExpiryWarning()
         Self.background.subtitle = { [weak self] in self?.backgroundSubtitle ?? "Sharing Personal Hotspot" }
+        session.hostName = HostNamePublisher.name
         observeScene()
         // A launch straight onto the screen (opened by hand or by an automation) asks for it now.
         if session.sceneActive { requestBackground() }
@@ -144,6 +148,7 @@ final class Model: ObservableObject {
         watcher = Task { [weak self] in
             while !Task.isCancelled {
                 self?.session.watch()
+                self?.publishHostName()
                 self?.checkLocalNetworkWhenTheHotspotComesUp()
                 self?.notify()
                 // The slack lets iOS wake the app for this together with other timers.
@@ -174,6 +179,14 @@ final class Model: ObservableObject {
     }
 
     func stopBackground() { background.end() }
+
+    /// Keeps `tether.local` pointing at the IPv6 address the server listens on.
+    private func publishHostName() {
+        #if DEBUG
+        if demo != nil { return }
+        #endif
+        hostName.publish(session.listeningIPv6)
+    }
 
     /// What the system's Live Activity for the background task says under "Tether".
     private var backgroundSubtitle: String {

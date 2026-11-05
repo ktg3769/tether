@@ -383,9 +383,24 @@ final class HotspotSession {
     /// doesn't, for a QR code scanned before the hotspot is on. None on a carrier that gives the
     /// iPhone IPv6 only, until a device joins the hotspot: 172.20.10.1 can't be reached there, and
     /// the iPhone's IPv6 address on the hotspot only comes with the hotspot's first device.
+    ///
+    /// This fork: where devices reach Tether over IPv6, they're given `hostName` instead, a name that
+    /// `Model` publishes with mDNS and keeps pointing at the IPv6 address the server listens on. That
+    /// address comes with each cellular session, the name stays, so a device is added only once.
     var deviceHost: String? {
+        if let hostName, onIPv6OnlyCarrier || (running && boundHost?.contains(":") == true) { return hostName }
         if running { return boundHost ?? Hotspot.host }
         return onIPv6OnlyCarrier ? nil : Hotspot.host
+    }
+
+    /// The mDNS name for the IPv6 address, see `deviceHost`. Nil hands out the address itself.
+    var hostName: String?
+
+    /// The IPv6 address the server listens on, for the mDNS name to point at. Nil without the hotspot
+    /// or on IPv4.
+    var listeningIPv6: String? {
+        guard running, let boundHost, boundHost.contains(":") else { return nil }
+        return boundHost
     }
 
     /// The device's config points at another address than the one Tether listens on, so it can't

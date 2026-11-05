@@ -153,6 +153,32 @@ final class HotspotSessionTests: XCTestCase {
         XCTAssertEqual(session.deviceHost, hotspot, "the usual address while there's no hotspot")
     }
 
+    /// This fork: with an mDNS name, a device on IPv6 is given the name, before and after the address
+    /// changes, so its config keeps working. On IPv4 it's still 172.20.10.1.
+    func testOnIPv6TheConfigPointsAtTheNameThatFollowsTheAddress() throws {
+        ipv6Only = true
+        makeSession()
+        session.hostName = "tether.local"
+        let ready = try XCTUnwrap(session.wireGuardReady)
+        XCTAssertEqual(session.deviceHost, "tether.local", "known before a device joins")
+        XCTAssertTrue(try XCTUnwrap(session.wireGuardConfig(for: ready)).contains("Endpoint = tether.local:51820\n"))
+        let a = "2607:fb91:88a2:e822:2c2a:d4de:6d26:71e2"
+        address = a
+        session.syncWithHotspot()
+        XCTAssertEqual(server.starts, [a], "the server still listens on the address")
+        XCTAssertEqual(session.listeningIPv6, a)
+        XCTAssertEqual(session.deviceHost, "tether.local")
+        address = "2607:fb91:1111:2222:3333:4444:5555:6666" // a new cellular session
+        session.syncWithHotspot()
+        XCTAssertEqual(session.deviceHost, "tether.local")
+        address = nil
+        session.syncWithHotspot()
+        XCTAssertNil(session.listeningIPv6)
+        ipv6Only = false
+        session.syncWithHotspot()
+        XCTAssertEqual(session.deviceHost, hotspot, "IPv4 needs no name")
+    }
+
     /// Before a device joins, the hotspot has no bridge, so there's no IPv6 address to give yet. The
     /// carrier's own interface, pdp_ip0, already says whether there will be IPv4 (#64).
     func testTheCarrierIsIPv6OnlyWhenTheInternetHasNoIPv4() {
