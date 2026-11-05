@@ -9,6 +9,36 @@ enum ConfigPage {
     /// never had it.
     static let port: UInt16 = 80
     static let configPath = "/Tether.conf"
+    static let shadowrocketPath = "/shadowrocket"
+
+    /// This fork: Shadowrocket's own share link for a WireGuard node, the one its Share Server
+    /// makes, as a subscription: base64 of the link. Shadowrocket fetches it with the device's
+    /// private key in the URL, so Tether keeps no device key, and gets the node with the iPhone's
+    /// current IPv6 address, which changes with each cellular session.
+    static func shadowrocketLink(host: String, port: UInt16, serverPublicKey: Data, privateKey: Data, address: String,
+                                 dns: String, mtu: Int, name: String) -> String {
+        func q(_ s: String) -> String {
+            var allowed = CharacterSet.alphanumerics
+            allowed.insert(charactersIn: "-._~")
+            return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
+        }
+        return "wg://\(Hotspot.withPort(host, port))?publicKey=\(q(serverPublicKey.base64EncodedString()))"
+            + "&privateKey=\(q(privateKey.base64EncodedString()))&ip=\(address)&mtu=\(mtu)&dns=\(dns)"
+            + "&keepalive=25&udp=1#\(q(name))"
+    }
+
+    static func shadowrocket(_ link: String) -> Response {
+        Response(status: .ok, contentType: "text/plain; charset=utf-8",
+                 body: Data((Data((link + "\n").utf8).base64EncodedString() + "\n").utf8))
+    }
+
+    /// A private key from a subscription URL: base64, standard or URL-safe, with or without padding.
+    static func privateKey(from key: String) -> Data? {
+        var b = key.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        while b.count % 4 != 0 { b += "=" }
+        guard let data = Data(base64Encoded: b), data.count == 32 else { return nil }
+        return data
+    }
 
     /// The address to type, without the port when it's 80.
     static func url(host: String, port: UInt16 = port) -> String {
@@ -25,6 +55,9 @@ enum ConfigPage {
     /// A HEAD asks for the same as a GET, without the body. Download managers send one first.
     enum Request: Equatable {
         case page, config, pageHead, configHead, notFound, notGet, malformed
+        /// This fork: a Shadowrocket subscription, `/shadowrocket?key=` and the device's private key.
+        /// See `ConfigPage.shadowrocket`.
+        case shadowrocket(key: String)
 
         init(_ head: Data) {
             guard let text = String(data: head, encoding: .utf8), let end = text.range(of: "\r\n") else {
@@ -41,7 +74,13 @@ enum ConfigPage {
                 return
             }
             let head = parts[0] == "HEAD"
-            switch parts[1].prefix(while: { $0 != "?" && $0 != "#" }) {
+            let path = parts[1].prefix(while: { $0 != "?" && $0 != "#" })
+            if path == Substring(ConfigPage.shadowrocketPath) {
+                let query = URLComponents(string: "http://x" + parts[1])?.queryItems ?? []
+                self = .shadowrocket(key: query.first { $0.name == "key" }?.value ?? "")
+                return
+            }
+            switch path {
             case "/": self = head ? .pageHead : .page
             case Substring(ConfigPage.configPath): self = head ? .configHead : .config
             default: self = .notFound

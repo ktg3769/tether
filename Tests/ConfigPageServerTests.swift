@@ -27,6 +27,7 @@ final class ConfigPageServerTests: XCTestCase {
             case .notFound: ConfigPage.notFound
             case .notGet: ConfigPage.notGet
             case .malformed: ConfigPage.malformed
+            case .shadowrocket: ConfigPage.notFound
             }
         }
         let ready = expectation(description: "listening")

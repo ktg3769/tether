@@ -132,4 +132,32 @@ final class ConfigPageTests: XCTestCase {
         XCTAssertEqual(ConfigPage.url(host: "2607:fb91::1", port: 80), "http://[2607:fb91::1]")
         XCTAssertEqual(ConfigPage.url(host: "2607:fb91::1", port: 8080), "http://[2607:fb91::1]:8080")
     }
+
+    // MARK: This fork's Shadowrocket subscription
+
+    func testTheSubscriptionPathCarriesTheKey() {
+        XCTAssertEqual(request("GET /shadowrocket?key=AB%2Bc%3D HTTP/1.1\r\n\r\n"), .shadowrocket(key: "AB+c="))
+        XCTAssertEqual(request("GET /shadowrocket HTTP/1.1\r\n\r\n"), .shadowrocket(key: ""))
+    }
+
+    func testKeysInEitherBase64AreRead() {
+        let key = Data((0..<32).map { UInt8($0 * 7 % 256) })
+        let standard = key.base64EncodedString()
+        let urlSafe = standard.replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+        XCTAssertEqual(ConfigPage.privateKey(from: standard), key)
+        XCTAssertEqual(ConfigPage.privateKey(from: urlSafe), key)
+        XCTAssertNil(ConfigPage.privateKey(from: "short"))
+    }
+
+    /// The same shape as the link Shadowrocket's own Share Server makes for a WireGuard node.
+    func testTheLinkIsShadowrocketsOwn() {
+        let link = ConfigPage.shadowrocketLink(host: "2001:db8::1", port: 51820, serverPublicKey: Data(repeating: 0xFB, count: 32),
+                                               privateKey: Data(repeating: 0x01, count: 32), address: "10.7.0.2",
+                                               dns: "1.1.1.1", mtu: 1420, name: "Tether")
+        XCTAssertEqual(link, "wg://[2001:db8::1]:51820?publicKey=%2B%2Fv7%2B%2Fv7%2B%2Fv7%2B%2Fv7%2B%2Fv7%2B%2Fv7%2B%2Fv7%2B%2Fv7%2B%2Fv7%2B%2Fv7%2B%2Fs%3D"
+                       + "&privateKey=AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE%3D&ip=10.7.0.2&mtu=1420&dns=1.1.1.1&keepalive=25&udp=1#Tether")
+        let body = String(decoding: ConfigPage.shadowrocket(link).body, as: UTF8.self).trimmingCharacters(in: .newlines)
+        XCTAssertEqual(Data(base64Encoded: body).map { String(decoding: $0, as: UTF8.self) }, link + "\n")
+    }
 }

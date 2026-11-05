@@ -472,10 +472,31 @@ final class HotspotSession {
             let response = ConfigPage.config(config, fileName: WireGuardSetup.fileName(for: name))
             lastDownload = (client, now(), response)
             return response
+        case .shadowrocket(let key):
+            return shadowrocketResponse(key: key, from: client)
         case .notFound: return ConfigPage.notFound
         case .notGet: return ConfigPage.notGet
         case .malformed: return ConfigPage.malformed
         }
+    }
+
+    /// This fork: the device whose private key is in the URL gets its node with the address Tether
+    /// listens on now, on screen or not. Any other key gets a 404, so the page tells nobody else
+    /// anything.
+    private func shadowrocketResponse(key: String, from client: String) -> ConfigPage.Response {
+        guard devices.loaded, running, let host = boundHost, let privateKey = ConfigPage.privateKey(from: key) else {
+            return ConfigPage.notFound
+        }
+        let publicKey = WireGuardSetup.publicKey(of: privateKey)
+        guard let peer = devices.setup.peers.first(where: { $0.publicKey == publicKey }) else {
+            log("Shadowrocket: \(client) asked with a key that isn't a device's")
+            return ConfigPage.notFound
+        }
+        log("Shadowrocket: \(client) fetched the node for \(peer.address) at \(host)")
+        let link = ConfigPage.shadowrocketLink(host: host, port: WireGuardSetup.port, serverPublicKey: devices.setup.serverPublicKey,
+                                               privateKey: privateKey, address: peer.address, dns: WireGuardSetup.dns,
+                                               mtu: WireGuardSetup.mtu, name: "Tether")
+        return ConfigPage.shadowrocket(link)
     }
 
     /// On a memory warning.
